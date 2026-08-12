@@ -95,10 +95,10 @@ const WINDOWS_DEFAULT_FONT = "C:/Windows/Fonts/arial.ttf";
 
 const ASPECT_RATIOS = {
   original: null,
-  "9:16": { w: 1080, h: 1920 },
-  "1:1": { w: 1080, h: 1080 },
-  "4:5": { w: 1080, h: 1350 },
-  "16:9": { w: 1920, h: 1080 },
+  "9:16": { w: 720, h: 1280 },
+  "1:1": { w: 720, h: 720 },
+  "4:5": { w: 720, h: 900 },
+  "16:9": { w: 1280, h: 720 },
 };
 
 async function renderVideo({
@@ -222,11 +222,10 @@ async function renderVideo({
     currentLabel = "vpadded";
   }
 
- // 5. Burn in subtitles (skippable)
   if (subtitlesEnabled) {
     const alignment = SUBTITLE_POSITIONS[subtitlePosition] || SUBTITLE_POSITIONS.bottom;
     filterLines.push(
-      `[${currentLabel}]subtitles='${escapedSrtPath}':force_style='Alignment=${alignment}\,MarginV=40'[vsub]`
+      `[${currentLabel}]subtitles='${escapedSrtPath}':force_style='Alignment=${alignment}\\,MarginV=40'[vsub]`
     );
     currentLabel = "vsub";
   }
@@ -247,6 +246,8 @@ async function renderVideo({
     "-map", `[${currentLabel}]`,
     "-map", "1:a",
     "-c:v", "libx264",
+    "-preset", "ultrafast",
+    "-threads", "1",
     "-c:a", "aac",
     "-shortest",
     "-y",
