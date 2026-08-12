@@ -15,9 +15,6 @@ router.get("/tones", (req, res) => {
   res.json(Object.keys(TONE_PRESETS));
 });
 
-// IMPORTANT: this route must stay ABOVE the "/:transcribeJobId" route
-// below, otherwise Express matches "custom" as a transcribeJobId value
-// and this never gets reached.
 router.post("/custom", (req, res) => {
   const { text } = req.body || {};
 
@@ -52,7 +49,7 @@ router.post("/:transcribeJobId", async (req, res) => {
     });
   }
 
-  const { style } = req.body || {};
+  const { style, groqApiKey } = req.body || {};
 
   const scriptJob = createJob({ type: "script", source: req.params.transcribeJobId });
   updateJob(scriptJob.id, { status: "processing", progress: 20 });
@@ -60,7 +57,10 @@ router.post("/:transcribeJobId", async (req, res) => {
   res.status(202).json({ jobId: scriptJob.id, status: "processing" });
 
   try {
-    const { scriptText } = await generateRecapScript(transcribeJob.transcriptText, { style });
+    const { scriptText } = await generateRecapScript(transcribeJob.transcriptText, {
+      style,
+      apiKey: groqApiKey || null,
+    });
 
     const scriptPath = path.join(SCRIPT_DIR, `${scriptJob.id}.txt`);
     fs.writeFileSync(scriptPath, scriptText, "utf-8");

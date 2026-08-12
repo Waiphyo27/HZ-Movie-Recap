@@ -2,19 +2,18 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const CHAT_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const CHAT_MODEL = "llama-3.3-70b-versatile";
 
-// Tone presets — each adds an extra directive on top of the base
-// "casual storyteller" style, shaping how the recap feels.
 const TONE_PRESETS = {
   dramatic: "Lean into the emotional weight of the story — make the stakes feel real and moving, like a touching drama.",
   comedy: "Keep it light and funny — play up anything amusing or absurd, and react to it the way you would when telling a friend something hilarious.",
   romance: "Focus on the emotional/relationship angle — make it feel like recounting a touching love story, lingering on the feelings between people.",
   suspense: "Build tension as you go — make the listener anxious and curious about what happens next, holding back just enough to keep them hooked.",
   motivational: "Give it an inspiring, uplifting tone — emphasize triumph, effort, and the lesson or payoff by the end.",
-  storyteller: "", // neutral default — just the base casual storytelling style
+  storyteller: "",
 };
 
-async function generateRecapScript(transcriptText, { style = "storyteller" } = {}) {
-  if (!GROQ_API_KEY) {
+async function generateRecapScript(transcriptText, { style = "storyteller", apiKey = null } = {}) {
+  const effectiveKey = apiKey || GROQ_API_KEY;
+  if (!effectiveKey) {
     throw new Error("GROQ_API_KEY is not set. Add it to your .env file.");
   }
 
@@ -53,7 +52,7 @@ sentence flowing into sentence.
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${GROQ_API_KEY}`,
+      Authorization: `Bearer ${effectiveKey}`,
     },
     body: JSON.stringify({
       model: CHAT_MODEL,

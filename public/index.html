@@ -165,7 +165,30 @@
 
 <h1>Recap Generator</h1>
 
+<div class="card" id="apiKeysCard">
+  <h2>🔑 Your API Keys (optional)</h2>
+  <div class="hint">
+    This app works out of the box, but heavy use shares the app owner's free quota with
+    everyone. Paste your own free keys below to use your own quota instead — they're saved
+    only in <em>your</em> browser, never sent anywhere except directly to Groq/OpenAI/
+    Gemini/OpenRouter when you generate a recap.
+  </div>
+
+  <label for="userGroqKey">Groq API Key — <a href="https://console.groq.com/keys" target="_blank" rel="noopener">get a free one ↗</a></label>
+  <input type="text" id="userGroqKey" placeholder="gsk_..." autocomplete="off" />
+
+  <label for="userOpenaiKey">OpenAI API Key (paid) — <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">get one ↗</a></label>
+  <input type="text" id="userOpenaiKey" placeholder="sk-..." autocomplete="off" />
+
+  <label for="userGeminiKey">Gemini API Key (free, region-limited) — <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">get a free one ↗</a></label>
+  <input type="text" id="userGeminiKey" placeholder="AIzaSy..." autocomplete="off" />
+
+  <label for="userOpenrouterKey">OpenRouter API Key (free) — <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">get a free one ↗</a></label>
+  <input type="text" id="userOpenrouterKey" placeholder="sk-or-v1-..." autocomplete="off" style="margin-bottom:0;" />
+</div>
+
 <div class="card" id="phase1Card">
+
   <h2>1. Video → Script</h2>
 
   <label for="url">Video URL (YouTube, Douyin, Xiaohongshu, TikTok...)</label>
@@ -362,6 +385,33 @@ const blurBoxMarker = document.getElementById("blurBoxMarker");
 const logoMarker = document.getElementById("logoMarker");
 const enableBlurBoxCheckbox = document.getElementById("enableBlurBox");
 const blurSizeSelect = document.getElementById("blurSize");
+
+const userGroqKeyInput = document.getElementById("userGroqKey");
+const userOpenaiKeyInput = document.getElementById("userOpenaiKey");
+const userGeminiKeyInput = document.getElementById("userGeminiKey");
+const userOpenrouterKeyInput = document.getElementById("userOpenrouterKey");
+
+const API_KEY_FIELDS = [
+  ["userGroqKey", userGroqKeyInput],
+  ["userOpenaiKey", userOpenaiKeyInput],
+  ["userGeminiKey", userGeminiKeyInput],
+  ["userOpenrouterKey", userOpenrouterKeyInput],
+];
+API_KEY_FIELDS.forEach(function ([storageKey, input]) {
+  const saved = localStorage.getItem(storageKey);
+  if (saved) input.value = saved;
+  input.addEventListener("input", function () {
+    localStorage.setItem(storageKey, input.value.trim());
+  });
+});
+
+function getApiKeyForProvider(provider) {
+  if (provider === "groq") return userGroqKeyInput.value.trim() || null;
+  if (provider === "openai") return userOpenaiKeyInput.value.trim() || null;
+  if (provider === "gemini") return userGeminiKeyInput.value.trim() || null;
+  if (provider === "openrouter") return userOpenrouterKeyInput.value.trim() || null;
+  return null;
+}
 
 let videoJobId = null;
 
@@ -575,7 +625,7 @@ phase1Btn.addEventListener("click", async function () {
     const transcribeStart = await fetch(API + "/api/transcribe/" + videoStart.jobId, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: "{}",
+      body: JSON.stringify({ groqApiKey: getApiKeyForProvider("groq") }),
     }).then(function (r) { return r.json(); });
     if (transcribeStart.error) throw new Error(transcribeStart.error);
     await pollUntilDone(API + "/api/transcribe/status/" + transcribeStart.jobId);
@@ -585,7 +635,7 @@ phase1Btn.addEventListener("click", async function () {
     const scriptStart = await fetch(API + "/api/script/" + transcribeStart.jobId, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ style: tone }),
+      body: JSON.stringify({ style: tone, groqApiKey: getApiKeyForProvider("groq") }),
     }).then(function (r) { return r.json(); });
     if (scriptStart.error) throw new Error(scriptStart.error);
     const scriptResult = await pollUntilDone(API + "/api/script/status/" + scriptStart.jobId);
@@ -633,7 +683,11 @@ autoTranslateBtn.addEventListener("click", async function () {
     const translateStart = await fetch(API + "/api/translate/" + customJob.jobId, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetLanguage: targetLanguage, provider: provider }),
+      body: JSON.stringify({
+        targetLanguage: targetLanguage,
+        provider: provider,
+        apiKey: getApiKeyForProvider(provider),
+      }),
     }).then(function (r) { return r.json(); });
     if (translateStart.error) throw new Error(translateStart.error);
 

@@ -2,11 +2,6 @@ const fs = require("fs");
 const path = require("path");
 const { segmentsToSrt } = require("../utils/srtFormatter");
 
-// Groq's API is free (generous rate limits, no credit card) and is
-// OpenAI-compatible — same request/response shape as OpenAI's Whisper API,
-// just a different base URL, API key, and model name. If you later want to
-// switch to OpenAI (e.g. for higher rate limits), you only need to change
-// these three lines plus the env var name.
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const WHISPER_API_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
 const WHISPER_MODEL = "whisper-large-v3";
@@ -17,16 +12,9 @@ if (!fs.existsSync(TRANSCRIPT_DIR)) {
   fs.mkdirSync(TRANSCRIPT_DIR, { recursive: true });
 }
 
-/**
- * Sends an audio file to Groq's (free, OpenAI-compatible) Whisper API and
- * returns both the plain transcript text and an .srt subtitle file (with
- * timestamps), saved to TRANSCRIPT_DIR.
- *
- * Uses Node's built-in fetch + FormData (available natively since Node 18,
- * no extra npm package needed for this part).
- */
-async function transcribeAudio(audioFilePath, { language = null } = {}) {
-  if (!GROQ_API_KEY) {
+async function transcribeAudio(audioFilePath, { language = null, apiKey = null } = {}) {
+  const effectiveKey = apiKey || GROQ_API_KEY;
+  if (!effectiveKey) {
     throw new Error(
       "GROQ_API_KEY is not set. Add it to your .env file — get a free one at https://console.groq.com/keys"
     );
@@ -42,13 +30,13 @@ async function transcribeAudio(audioFilePath, { language = null } = {}) {
   const form = new FormData();
   form.append("file", audioBlob, path.basename(audioFilePath));
   form.append("model", WHISPER_MODEL);
-  form.append("response_format", "verbose_json"); // gives us segment timestamps
-  if (language) form.append("language", language); // e.g. "zh", "en" — skip to auto-detect
+  form.append("response_format", "verbose_json");
+  if (language) form.append("language", language);
 
   const response = await fetch(WHISPER_API_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${GROQ_API_KEY}`,
+      Authorization: `Bearer ${effectiveKey}`,
     },
     body: form,
   });
@@ -59,7 +47,6 @@ async function transcribeAudio(audioFilePath, { language = null } = {}) {
   }
 
   const result = await response.json();
-  // result shape: { text, language, duration, segments: [{ start, end, text }, ...] }
 
   const baseId = path.basename(audioFilePath, path.extname(audioFilePath));
   const srtContent = segmentsToSrt(result.segments || []);

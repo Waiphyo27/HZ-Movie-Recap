@@ -29,14 +29,15 @@ languages (including English) unless there is genuinely no equivalent word.
 romanization, no formal register.`;
 }
 
-async function callGroq(text, targetLanguage) {
-  if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set in .env");
+async function callGroq(text, targetLanguage, apiKey) {
+  const key = apiKey || GROQ_API_KEY;
+  if (!key) throw new Error("GROQ_API_KEY is not set in .env");
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${GROQ_API_KEY}`,
+      Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
@@ -57,14 +58,15 @@ async function callGroq(text, targetLanguage) {
   return result.choices?.[0]?.message?.content?.trim();
 }
 
-async function callOpenAI(text, targetLanguage) {
-  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set in .env");
+async function callOpenAI(text, targetLanguage, apiKey) {
+  const key = apiKey || OPENAI_API_KEY;
+  if (!key) throw new Error("OPENAI_API_KEY is not set in .env");
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
       model: "gpt-4o-mini",
@@ -85,12 +87,13 @@ async function callOpenAI(text, targetLanguage) {
   return result.choices?.[0]?.message?.content?.trim();
 }
 
-async function callGemini(text, targetLanguage) {
-  if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not set in .env");
+async function callGemini(text, targetLanguage, apiKey) {
+  const key = apiKey || GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY is not set in .env");
 
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
 
-  const response = await fetch(`${url}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(`${url}?key=${key}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -109,14 +112,15 @@ async function callGemini(text, targetLanguage) {
   return result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 }
 
-async function callOpenRouter(text, targetLanguage) {
-  if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY is not set in .env");
+async function callOpenRouter(text, targetLanguage, apiKey) {
+  const key = apiKey || OPENROUTER_API_KEY;
+  if (!key) throw new Error("OPENROUTER_API_KEY is not set in .env");
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
       model: "openrouter/free",
@@ -156,7 +160,7 @@ function splitIntoChunks(text) {
   return paragraphs.length > 0 ? paragraphs : [text];
 }
 
-async function translateScript(scriptText, targetLanguage, provider = "groq") {
+async function translateScript(scriptText, targetLanguage, provider = "groq", apiKey = null) {
   if (!scriptText || !scriptText.trim()) {
     throw new Error("Script text is empty — nothing to translate.");
   }
@@ -177,7 +181,7 @@ async function translateScript(scriptText, targetLanguage, provider = "groq") {
 
   async function translateWithRetry(chunk, attempt = 1) {
     try {
-      return await translateFn(chunk, targetLanguage);
+      return await translateFn(chunk, targetLanguage, apiKey);
     } catch (err) {
       const is429 = err.message && err.message.includes("429");
       if (is429 && attempt < 4) {
