@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Recap Generator</title>
+<style>
+  :root {
+    --bg: #14101f;
+    --card: #1e1830;
+    --accent: #8b5cf6;
+    --accent2: #6366f1;
+    --text: #f1eefc;
+    --muted: #a89bc4;
+    --border: #33294f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+  h1 { font-size: 22px; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card.dimmed { opacity: 0.45; pointer-events: none; }
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input[type="text"], input[type="file"], select, textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #120e1e;
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 14px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 140px; line-height: 1.5; }
+  .url-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .url-row input[type="text"] { margin-bottom: 0; flex: 1; }
+  .icon-btn {
+    width: auto;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #120e1e;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .icon-btn:hover { border-color: var(--accent); }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  button.primary {
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .steps { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+  .step { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+  .step .dot { width: 10px; height: 10px; border-radius: 50%; background: #3a3153; flex-shrink: 0; }
+  .step.active .dot { background: var(--accent); }
+  .step.done .dot { background: #22c55e; }
+  .step.error .dot { background: #ef4444; }
+  .step.active, .step.done { color: var(--text); }
+  video { width: 100%; border-radius: 10px; margin-top: 10px; background: black; }
+  a.download { display: block; text-align: center; margin-top: 10px; color: var(--accent); text-decoration: none; font-size: 14px; }
+  .error-box {
+    background: #3a1620;
+    border: 1px solid #7a2436;
+    color: #ff9fb0;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-top: 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .section-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 4px 0 10px;
+  }
+  .hint { font-size: 12px; color: var(--muted); margin: -8px 0 14px; line-height: 1.5; }
+  .external-links { display: flex; gap: 8px; margin-bottom: 14px; }
+  .external-links a {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+  }
+  .external-links a:hover { border-color: var(--accent); }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .checkbox-row input { width: auto; margin: 0; }
+  .checkbox-row label { margin: 0; font-size: 13px; color: var(--text); }
+
+  #previewWrap {
+    position: relative;
+    display: none;
+    margin-bottom: 14px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+    user-select: none;
+  }
+  #previewImg { width: 100%; display: block; }
+  .drag-marker {
+    position: absolute;
+    cursor: move;
+    box-sizing: border-box;
+    touch-action: none;
+  }
+  #logoMarker {
+    background: rgba(139, 92, 246, 0.45);
+    border: 2px solid #8b5cf6;
+    border-radius: 4px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: white;
+  }
+  #blurBoxMarker {
+    background: rgba(239, 68, 68, 0.3);
+    border: 2px dashed #ef4444;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: white;
+  }
+</style>
+</head>
+<body>
+
+<h1>Recap Generator</h1>
+
+<div class="card" id="phase1Card">
+  <h2>1. Video → Script</h2>
+
+  <label for="url">Video URL (YouTube, Douyin, Xiaohongshu, TikTok...)</label>
+  <div class="url-row">
+    <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=..." />
+    <button type="button" class="icon-btn" id="pasteBtn">Paste</button>
+    <button type="button" class="icon-btn" id="clearBtn">Clear</button>
+  </div>
+
+  <label for="videoFile">— OR — upload a video file already on your PC (MP4/MOV/MKV/WebM/AVI)</label>
+  <input type="file" id="videoFile" accept="video/mp4,video/quicktime,video/x-matroska,video/webm,video/x-msvideo" />
+
+  <label for="tone">Tone / Style</label>
+  <select id="tone">
+    <option value="storyteller">Neutral storyteller</option>
+    <option value="dramatic">Dramatic</option>
+    <option value="comedy">Comedy</option>
+    <option value="romance">Romance</option>
+    <option value="suspense">Suspense</option>
+    <option value="motivational">Motivational</option>
+  </select>
+
+  <button class="primary" id="phase1Btn">Generate Script</button>
+
+  <div class="steps" id="phase1Steps" style="margin-top:16px;">
+    <div class="step" data-step="video"><div class="dot"></div><span>Loading video</span></div>
+    <div class="step" data-step="transcribe"><div class="dot"></div><span>Transcribing speech</span></div>
+    <div class="step" data-step="script"><div class="dot"></div><span>Writing recap script</span></div>
+  </div>
+  <div id="phase1ErrorBox"></div>
+</div>
+
+<div class="card dimmed" id="phase2Card">
+  <h2>2. Review, translate (optional), then generate video</h2>
+
+  <label for="scriptTextArea">Narration text — edit freely, or translate it yourself:</label>
+  <textarea id="scriptTextArea" placeholder="Your script will appear here after Step 1..."></textarea>
+
+  <div class="row" style="margin-bottom:14px;">
+    <button type="button" class="icon-btn" id="copyScriptBtn" style="flex:1;">Copy text</button>
+    <button type="button" class="icon-btn" id="pasteScriptBtn" style="flex:1;">Paste text</button>
+    <button type="button" class="icon-btn" id="clearScriptBtn" style="flex:1;">Clear text</button>
+  </div>
+
+  <div class="hint">
+    To translate it yourself: click "Copy text" above, open ChatGPT or Gemini below, paste it in
+    with a request like <em>"translate this to natural spoken Myanmar (Burmese)"</em>, then copy
+    their reply back into the box above (replacing the English) before continuing.
+  </div>
+
+  <div class="external-links">
+    <a href="https://chatgpt.com" target="_blank" rel="noopener">Open ChatGPT ↗</a>
+    <a href="https://gemini.google.com" target="_blank" rel="noopener">Open Gemini ↗</a>
+  </div>
+
+  <div class="section-title">— OR — auto-translate here instead</div>
+  <div class="row">
+    <div>
+      <label for="targetLanguage">Translate to</label>
+      <select id="targetLanguage">
+        <option value="">— none (keep original language) —</option>
+        <option value="Myanmar (Burmese)">Myanmar (Burmese)</option>
+        <option value="English">English</option>
+        <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+        <option value="Thai">Thai</option>
+        <option value="Japanese">Japanese</option>
+        <option value="Korean">Korean</option>
+        <option value="Vietnamese">Vietnamese</option>
+        <option value="Hindi">Hindi</option>
+        <option value="Spanish">Spanish</option>
+        <option value="French">French</option>
+      </select>
+    </div>
+    <div>
+      <label for="translationProvider">Provider</label>
+      <select id="translationProvider">
+        <option value="groq">Groq (free)</option>
+        <option value="openai">OpenAI (paid, best quality)</option>
+        <option value="gemini">Gemini (free, region-limited)</option>
+        <option value="openrouter">OpenRouter (free, auto-router)</option>
+      </select>
+    </div>
+  </div>
+  <button type="button" class="icon-btn" id="autoTranslateBtn" style="width:100%; margin-bottom:14px;">Auto-translate into the box above</button>
+  <div id="translateErrorBox"></div>
+
+  <div class="section-title">Voice & output settings</div>
+
+  <div class="row">
+    <div>
+      <label for="voice">Voice</label>
+      <select id="voice"></select>
+    </div>
+    <div>
+      <label for="subtitlePosition">Subtitle position</label>
+      <select id="subtitlePosition">
+        <option value="bottom">Bottom</option>
+        <option value="middle">Middle</option>
+        <option value="top">Top</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="checkbox-row">
+    <input type="checkbox" id="subtitlesEnabled" checked />
+    <label for="subtitlesEnabled">Burn in subtitles (uncheck for clean voice-over with no on-screen text)</label>
+  </div>
+
+  <label for="aspectRatio">Aspect ratio</label>
+  <select id="aspectRatio">
+    <option value="original">Original</option>
+    <option value="9:16">9:16 (Vertical / TikTok, Reels)</option>
+    <option value="1:1">1:1 (Square)</option>
+    <option value="4:5">4:5 (Instagram Portrait)</option>
+    <option value="16:9">16:9 (Widescreen)</option>
+  </select>
+
+  <div class="section-title">Preview & positioning</div>
+  <div class="hint">Drag the boxes on the preview below to place them wherever you like.</div>
+
+  <div id="previewWrap">
+    <img id="previewImg" alt="Video preview" />
+    <div class="drag-marker" id="blurBoxMarker">Blur</div>
+    <div class="drag-marker" id="logoMarker">Logo</div>
+  </div>
+
+  <div class="checkbox-row">
+    <input type="checkbox" id="enableBlurBox" />
+    <label for="enableBlurBox">Blur a region (hide original captions/watermark) — drag box above once enabled</label>
+  </div>
+  <label for="blurSize">Blur box size</label>
+  <select id="blurSize">
+    <option value="small">Small strip</option>
+    <option value="medium" selected>Medium strip</option>
+    <option value="large">Large strip</option>
+  </select>
+
+  <div class="section-title">Branding (optional)</div>
+
+  <label for="watermarkText">Watermark text (bottom-right corner)</label>
+  <input type="text" id="watermarkText" placeholder="e.g. @yourchannel" />
+
+  <label for="logoFile">Logo image (PNG/JPEG/WebP) — drag position on preview above once chosen</label>
+  <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" />
+
+  <button class="primary" id="phase2Btn">Generate Voice + Video</button>
+
+  <div class="steps" id="phase2Steps" style="margin-top:16px;">
+    <div class="step" data-step="tts"><div class="dot"></div><span>Generating voice-over</span></div>
+    <div class="step" data-step="logo"><div class="dot"></div><span>Uploading logo (if provided)</span></div>
+    <div class="step" data-step="render"><div class="dot"></div><span>Rendering final video</span></div>
+  </div>
+  <div id="phase2ErrorBox"></div>
+</div>
+
+<div class="card" id="resultCard" style="display:none;">
+  <label>Result</label>
+  <video id="resultVideo" controls></video>
+  <a id="downloadLink" class="download" href="#" download>Download video</a>
+</div>
+
+<script>
+const API = window.location.origin;
+
+const urlInput = document.getElementById("url");
+const pasteBtn = document.getElementById("pasteBtn");
+const clearBtn = document.getElementById("clearBtn");
+const videoFileInput = document.getElementById("videoFile");
+const toneSelect = document.getElementById("tone");
+const phase1Btn = document.getElementById("phase1Btn");
+const phase1Steps = document.getElementById("phase1Steps");
+const phase1ErrorBox = document.getElementById("phase1ErrorBox");
+const phase2Card = document.getElementById("phase2Card");
+const scriptTextArea = document.getElementById("scriptTextArea");
+const copyScriptBtn = document.getElementById("copyScriptBtn");
+const pasteScriptBtn = document.getElementById("pasteScriptBtn");
+const clearScriptBtn = document.getElementById("clearScriptBtn");
+const targetLanguageInput = document.getElementById("targetLanguage");
+const translationProviderSelect = document.getElementById("translationProvider");
+const autoTranslateBtn = document.getElementById("autoTranslateBtn");
+const translateErrorBox = document.getElementById("translateErrorBox");
+const voiceSelect = document.getElementById("voice");
+const logoFileInput = document.getElementById("logoFile");
+const phase2Btn = document.getElementById("phase2Btn");
+const phase2Steps = document.getElementById("phase2Steps");
+const phase2ErrorBox = document.getElementById("phase2ErrorBox");
+const resultCard = document.getElementById("resultCard");
+const resultVideo = document.getElementById("resultVideo");
+const downloadLink = document.getElementById("downloadLink");
+
+const previewWrap = document.getElementById("previewWrap");
+const previewImg = document.getElementById("previewImg");
+const blurBoxMarker = document.getElementById("blurBoxMarker");
+const logoMarker = document.getElementById("logoMarker");
+const enableBlurBoxCheckbox = document.getElementById("enableBlurBox");
+const blurSizeSelect = document.getElementById("blurSize");
+
+let videoJobId = null;
+
+let blurBoxState = { x: 0, y: 0.75, w: 1, h: 0.18 };
+let logoBoxState = { x: 0.75, y: 0.03, w: 0.2, h: 0.12 };
+
+const BLUR_SIZES = {
+  small: 0.1,
+  medium: 0.18,
+  large: 0.3,
+};
+
+pasteBtn.addEventListener("click", async function () {
+  try {
+    const text = await navigator.clipboard.readText();
+    urlInput.value = text;
+  } catch (err) {
+    phase1ErrorBox.innerHTML = '<div class="error-box">Could not read clipboard — paste manually with Ctrl+V.</div>';
+  }
+});
+
+clearBtn.addEventListener("click", function () {
+  urlInput.value = "";
+  urlInput.focus();
+});
+
+copyScriptBtn.addEventListener("click", async function () {
+  try {
+    await navigator.clipboard.writeText(scriptTextArea.value);
+    copyScriptBtn.textContent = "Copied!";
+    setTimeout(function () { copyScriptBtn.textContent = "Copy text"; }, 1500);
+  } catch (err) {
+    scriptTextArea.select();
+  }
+});
+
+pasteScriptBtn.addEventListener("click", async function () {
+  try {
+    const text = await navigator.clipboard.readText();
+    scriptTextArea.value = text;
+  } catch (err) {
+    showError(translateErrorBox, "Could not read clipboard — paste manually with Ctrl+V into the box.");
+  }
+});
+
+clearScriptBtn.addEventListener("click", function () {
+  scriptTextArea.value = "";
+  scriptTextArea.focus();
+});
+
+function setStepState(container, stepName, state) {
+  const el = container.querySelector('[data-step="' + stepName + '"]');
+  el.classList.remove("active", "done", "error");
+  if (state) el.classList.add(state);
+}
+
+function showError(box, message) {
+  box.innerHTML = '<div class="error-box">' + message + '</div>';
+}
+
+async function loadVoices() {
+  try {
+    const res = await fetch(API + "/api/tts/voices");
+    const voices = await res.json();
+    voiceSelect.innerHTML = "";
+    if (Array.isArray(voices)) {
+      voices.forEach(function (v) {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        voiceSelect.appendChild(opt);
+      });
+    } else {
+      Object.entries(voices).forEach(function ([id, label]) {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = label;
+        voiceSelect.appendChild(opt);
+      });
+    }
+  } catch (err) {
+    voiceSelect.innerHTML = '<option value="en-US-AndrewNeural">en-US-AndrewNeural</option>';
+  }
+}
+
+async function pollUntilDone(url) {
+  while (true) {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.status === "done") return data;
+    if (data.status === "error") throw new Error(data.error || "Job failed");
+    await new Promise(function (r) { setTimeout(r, 2000); });
+  }
+}
+
+function renderMarker(el, box) {
+  el.style.left = (box.x * 100) + "%";
+  el.style.top = (box.y * 100) + "%";
+  el.style.width = (box.w * 100) + "%";
+  el.style.height = (box.h * 100) + "%";
+}
+
+function refreshMarkers() {
+  renderMarker(blurBoxMarker, blurBoxState);
+  renderMarker(logoMarker, logoBoxState);
+}
+
+function makeDraggable(el, state) {
+  let dragging = false;
+  let startPointerX = 0;
+  let startPointerY = 0;
+  let startX = 0;
+  let startY = 0;
+
+  el.addEventListener("pointerdown", function (e) {
+    dragging = true;
+    el.setPointerCapture(e.pointerId);
+    startPointerX = e.clientX;
+    startPointerY = e.clientY;
+    startX = state.x;
+    startY = state.y;
+  });
+
+  el.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    const rect = previewWrap.getBoundingClientRect();
+    const dxFrac = (e.clientX - startPointerX) / rect.width;
+    const dyFrac = (e.clientY - startPointerY) / rect.height;
+    state.x = Math.min(Math.max(startX + dxFrac, 0), 1 - state.w);
+    state.y = Math.min(Math.max(startY + dyFrac, 0), 1 - state.h);
+    refreshMarkers();
+  });
+
+  function endDrag(e) {
+    dragging = false;
+  }
+  el.addEventListener("pointerup", endDrag);
+  el.addEventListener("pointercancel", endDrag);
+}
+
+makeDraggable(blurBoxMarker, blurBoxState);
+makeDraggable(logoMarker, logoBoxState);
+
+enableBlurBoxCheckbox.addEventListener("change", function () {
+  blurBoxMarker.style.display = enableBlurBoxCheckbox.checked ? "flex" : "none";
+});
+
+blurSizeSelect.addEventListener("change", function () {
+  const h = BLUR_SIZES[blurSizeSelect.value] || BLUR_SIZES.medium;
+  blurBoxState.h = h;
+  blurBoxState.w = 1;
+  blurBoxState.x = 0;
+  if (blurBoxState.y + h > 1) blurBoxState.y = 1 - h;
+  refreshMarkers();
+});
+
+logoFileInput.addEventListener("change", function () {
+  logoMarker.style.display = logoFileInput.files[0] ? "flex" : "none";
+});
+
+async function loadPreview(jobId) {
+  try {
+    const res = await fetch(API + "/api/video/" + jobId + "/thumbnail");
+    const data = await res.json();
+    if (data.error) return;
+    previewImg.src = API + data.thumbnailUrl;
+    previewWrap.style.display = "block";
+    refreshMarkers();
+  } catch (err) {
+    // Preview is a nice-to-have; silently skip if it fails.
+  }
+}
+
+phase1Btn.addEventListener("click", async function () {
+  const url = urlInput.value.trim();
+  const videoFile = videoFileInput.files[0] || null;
+  const tone = toneSelect.value;
+
+  if (!url && !videoFile) {
+    showError(phase1ErrorBox, "Please enter a video URL or upload a video file.");
+    return;
+  }
+
+  phase1ErrorBox.innerHTML = "";
+  ["video", "transcribe", "script"].forEach(function (s) { setStepState(phase1Steps, s, null); });
+  phase1Btn.disabled = true;
+
+  try {
+    setStepState(phase1Steps, "video", "active");
+    let videoStart;
+    if (videoFile) {
+      const videoFormData = new FormData();
+      videoFormData.append("video", videoFile);
+      videoStart = await fetch(API + "/api/video/upload", {
+        method: "POST",
+        body: videoFormData,
+      }).then(function (r) { return r.json(); });
+    } else {
+      videoStart = await fetch(API + "/api/video/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url }),
+      }).then(function (r) { return r.json(); });
+    }
+    if (videoStart.error) throw new Error(videoStart.error);
+    await pollUntilDone(API + "/api/video/status/" + videoStart.jobId);
+    videoJobId = videoStart.jobId;
+    setStepState(phase1Steps, "video", "done");
+
+    setStepState(phase1Steps, "transcribe", "active");
+    const transcribeStart = await fetch(API + "/api/transcribe/" + videoStart.jobId, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    }).then(function (r) { return r.json(); });
+    if (transcribeStart.error) throw new Error(transcribeStart.error);
+    await pollUntilDone(API + "/api/transcribe/status/" + transcribeStart.jobId);
+    setStepState(phase1Steps, "transcribe", "done");
+
+    setStepState(phase1Steps, "script", "active");
+    const scriptStart = await fetch(API + "/api/script/" + transcribeStart.jobId, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ style: tone }),
+    }).then(function (r) { return r.json(); });
+    if (scriptStart.error) throw new Error(scriptStart.error);
+    const scriptResult = await pollUntilDone(API + "/api/script/status/" + scriptStart.jobId);
+    setStepState(phase1Steps, "script", "done");
+
+    scriptTextArea.value = scriptResult.scriptText || "";
+    phase2Card.classList.remove("dimmed");
+    loadPreview(videoJobId);
+    phase2Card.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) {
+    const activeStep = phase1Steps.querySelector(".step.active");
+    if (activeStep) activeStep.classList.add("error");
+    showError(phase1ErrorBox, err.message || "Something went wrong.");
+  } finally {
+    phase1Btn.disabled = false;
+  }
+});
+
+autoTranslateBtn.addEventListener("click", async function () {
+  const targetLanguage = targetLanguageInput.value.trim();
+  const provider = translationProviderSelect.value;
+  const currentText = scriptTextArea.value.trim();
+
+  if (!targetLanguage) {
+    showError(translateErrorBox, "Choose a target language first.");
+    return;
+  }
+  if (!currentText) {
+    showError(translateErrorBox, "The text box is empty.");
+    return;
+  }
+
+  translateErrorBox.innerHTML = "";
+  autoTranslateBtn.disabled = true;
+  autoTranslateBtn.textContent = "Translating...";
+
+  try {
+    const customJob = await fetch(API + "/api/script/custom", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: currentText }),
+    }).then(function (r) { return r.json(); });
+    if (customJob.error) throw new Error(customJob.error);
+
+    const translateStart = await fetch(API + "/api/translate/" + customJob.jobId, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetLanguage: targetLanguage, provider: provider }),
+    }).then(function (r) { return r.json(); });
+    if (translateStart.error) throw new Error(translateStart.error);
+
+    const translateResult = await pollUntilDone(API + "/api/translate/status/" + translateStart.jobId);
+    scriptTextArea.value = translateResult.translatedText || "";
+  } catch (err) {
+    showError(translateErrorBox, err.message || "Translation failed.");
+  } finally {
+    autoTranslateBtn.disabled = false;
+    autoTranslateBtn.textContent = "Auto-translate into the box above";
+  }
+});
+
+phase2Btn.addEventListener("click", async function () {
+  const finalText = scriptTextArea.value.trim();
+  const voice = voiceSelect.value;
+  const subtitlePosition = document.getElementById("subtitlePosition").value;
+  const subtitlesEnabled = document.getElementById("subtitlesEnabled").checked;
+  const aspectRatio = document.getElementById("aspectRatio").value;
+  const watermarkText = document.getElementById("watermarkText").value.trim();
+  const logoFile = logoFileInput.files[0] || null;
+
+  if (!videoJobId) {
+    showError(phase2ErrorBox, "Run Step 1 first.");
+    return;
+  }
+  if (!finalText) {
+    showError(phase2ErrorBox, "The narration text box is empty.");
+    return;
+  }
+
+  phase2ErrorBox.innerHTML = "";
+  resultCard.style.display = "none";
+  ["tts", "logo", "render"].forEach(function (s) { setStepState(phase2Steps, s, null); });
+  phase2Btn.disabled = true;
+
+  try {
+    setStepState(phase2Steps, "tts", "active");
+    const finalTextJob = await fetch(API + "/api/script/custom", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: finalText }),
+    }).then(function (r) { return r.json(); });
+    if (finalTextJob.error) throw new Error(finalTextJob.error);
+
+    const ttsStart = await fetch(API + "/api/tts/" + finalTextJob.jobId, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voice: voice }),
+    }).then(function (r) { return r.json(); });
+    if (ttsStart.error) throw new Error(ttsStart.error);
+    await pollUntilDone(API + "/api/tts/status/" + ttsStart.jobId);
+    setStepState(phase2Steps, "tts", "done");
+
+    let logoPath = null;
+    if (logoFile) {
+      setStepState(phase2Steps, "logo", "active");
+      const formData = new FormData();
+      formData.append("logo", logoFile);
+      const logoUploadResult = await fetch(API + "/api/logo/upload", {
+        method: "POST",
+        body: formData,
+      }).then(function (r) { return r.json(); });
+      if (logoUploadResult.error) throw new Error(logoUploadResult.error);
+      logoPath = logoUploadResult.logoPath;
+      setStepState(phase2Steps, "logo", "done");
+    } else {
+      setStepState(phase2Steps, "logo", "done");
+    }
+
+    setStepState(phase2Steps, "render", "active");
+    const renderBody = {
+      videoJobId: videoJobId,
+      ttsJobId: ttsStart.jobId,
+      subtitlePosition: subtitlePosition,
+      subtitlesEnabled: subtitlesEnabled,
+      watermarkText: watermarkText || null,
+      logoPath: logoPath,
+      aspectRatio: aspectRatio,
+    };
+    if (logoPath) {
+      renderBody.logoPosition = { x: logoBoxState.x, y: logoBoxState.y };
+    }
+    if (enableBlurBoxCheckbox.checked) {
+      renderBody.blurBox = blurBoxState;
+    }
+
+    const renderStart = await fetch(API + "/api/render", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(renderBody),
+    }).then(function (r) { return r.json(); });
+    if (renderStart.error) throw new Error(renderStart.error);
+    const renderResult = await pollUntilDone(API + "/api/render/status/" + renderStart.jobId);
+    setStepState(phase2Steps, "render", "done");
+
+    const parts = renderResult.outputPath.split(/[\\/]/);
+    const fileName = parts[parts.length - 1];
+    const videoUrl = API + "/files/renders/" + fileName;
+    resultVideo.src = videoUrl;
+    downloadLink.href = videoUrl;
+    resultCard.style.display = "block";
+    resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) {
+    const activeStep = phase2Steps.querySelector(".step.active");
+    if (activeStep) activeStep.classList.add("error");
+    showError(phase2ErrorBox, err.message || "Something went wrong.");
+  } finally {
+    phase2Btn.disabled = false;
+  }
+});
+
+loadVoices();
+</script>
+
+</body>
+</html>

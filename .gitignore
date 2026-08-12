@@ -1,0 +1,12 @@
+node_modules
+.env
+downloads
+uploads
+audio
+transcripts
+scripts
+translations
+tts-audio
+renders
+render-subtitles
+thumbnails

@@ -1,0 +1,22 @@
+{
+  "name": "video-input-module",
+  "version": "1.0.0",
+  "description": "Video input module - supports file upload and link download (YouTube, Xiaohongshu/RedNote, Douyin, TikTok, etc.) via yt-dlp",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "uuid": "^9.0.1",
+    "fluent-ffmpeg": "^2.1.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
