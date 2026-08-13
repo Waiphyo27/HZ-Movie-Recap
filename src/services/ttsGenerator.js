@@ -9,51 +9,81 @@ if (!fs.existsSync(AUDIO_OUTPUT_DIR)) {
   fs.mkdirSync(AUDIO_OUTPUT_DIR, { recursive: true });
 }
 
-const VOICE_PRESETS = {
-  "my-MM-ThihaNeural": "Myanmar — Thiha, male",
-  "my-MM-NilarNeural": "Myanmar — Nilar, female",
+const WANTED_LOCALE_PREFIXES = [
+  "my-MM",
+  "en-US", "en-GB", "en-AU", "en-IN",
+  "zh-CN", "zh-TW",
+  "th-TH",
+  "ja-JP",
+  "ko-KR",
+  "vi-VN",
+  "hi-IN",
+  "es-ES", "es-MX",
+  "fr-FR",
+  "id-ID",
+];
 
-  "en-US-AndrewNeural": "English (US) — Andrew, male",
-  "en-US-AvaNeural": "English (US) — Ava, female",
-  "en-US-EmmaNeural": "English (US) — Emma, female",
-  "en-US-GuyNeural": "English (US) — Guy, male",
-  "en-US-JennyNeural": "English (US) — Jenny, female",
-  "en-GB-RyanNeural": "English (UK) — Ryan, male",
-  "en-GB-SoniaNeural": "English (UK) — Sonia, female",
-  "en-AU-WilliamNeural": "English (Australia) — William, male",
-  "en-AU-NatashaNeural": "English (Australia) — Natasha, female",
-  "en-IN-PrabhatNeural": "English (India) — Prabhat, male",
+function localeDisplayName(locale) {
+  const names = {
+    "my-MM": "Myanmar",
+    "en-US": "English (US)",
+    "en-GB": "English (UK)",
+    "en-AU": "English (Australia)",
+    "en-IN": "English (India)",
+    "zh-CN": "Chinese (Mandarin)",
+    "zh-TW": "Chinese (Taiwan)",
+    "th-TH": "Thai",
+    "ja-JP": "Japanese",
+    "ko-KR": "Korean",
+    "vi-VN": "Vietnamese",
+    "hi-IN": "Hindi",
+    "es-ES": "Spanish (Spain)",
+    "es-MX": "Spanish (Mexico)",
+    "fr-FR": "French",
+    "id-ID": "Indonesian",
+  };
+  return names[locale] || locale;
+}
 
-  "zh-CN-YunxiNeural": "Chinese (Mandarin) — Yunxi, male",
-  "zh-CN-XiaoxiaoNeural": "Chinese (Mandarin) — Xiaoxiao, female",
-  "zh-CN-YunjianNeural": "Chinese (Mandarin) — Yunjian, male",
-  "zh-TW-HsiaoChenNeural": "Chinese (Taiwan) — HsiaoChen, female",
+let cachedVoicePresets = null;
 
-  "th-TH-NiwatNeural": "Thai — Niwat, male",
-  "th-TH-PremwadeeNeural": "Thai — Premwadee, female",
+async function loadVoicePresetsFromLibrary() {
+  if (cachedVoicePresets) return cachedVoicePresets;
 
-  "ja-JP-KeitaNeural": "Japanese — Keita, male",
-  "ja-JP-NanamiNeural": "Japanese — Nanami, female",
+  try {
+    const tts = new MsEdgeTTS();
+    const allVoices = await tts.getVoices();
 
-  "ko-KR-InJoonNeural": "Korean — InJoon, male",
-  "ko-KR-SunHiNeural": "Korean — SunHi, female",
+    const presets = {};
+    for (const v of allVoices) {
+      const shortName = v.ShortName || v.Name;
+      if (!shortName) continue;
+      const locale = v.Locale || shortName.split("-").slice(0, 2).join("-");
+      if (!WANTED_LOCALE_PREFIXES.includes(locale)) continue;
 
-  "vi-VN-NamMinhNeural": "Vietnamese — NamMinh, male",
-  "vi-VN-HoaiMyNeural": "Vietnamese — HoaiMy, female",
+      const gender = v.Gender || "";
+      const friendlyMatch = shortName.match(/-([A-Za-z]+)Neural/);
+      const name = friendlyMatch ? friendlyMatch[1] : shortName;
+      presets[shortName] = `${localeDisplayName(locale)} — ${name}${gender ? `, ${gender.toLowerCase()}` : ""}`;
+    }
 
-  "hi-IN-MadhurNeural": "Hindi — Madhur, male",
-  "hi-IN-SwaraNeural": "Hindi — Swara, female",
+    if (Object.keys(presets).length > 0) {
+      cachedVoicePresets = presets;
+      return presets;
+    }
+  } catch (err) {
+    console.error("Could not fetch live voice list, falling back to static list:", err.message);
+  }
 
-  "es-ES-AlvaroNeural": "Spanish (Spain) — Alvaro, male",
-  "es-ES-ElviraNeural": "Spanish (Spain) — Elvira, female",
-  "es-MX-JorgeNeural": "Spanish (Mexico) — Jorge, male",
-
-  "fr-FR-HenriNeural": "French — Henri, male",
-  "fr-FR-DeniseNeural": "French — Denise, female",
-
-  "id-ID-ArdiNeural": "Indonesian — Ardi, male",
-  "id-ID-GadisNeural": "Indonesian — Gadis, female",
-};
+  cachedVoicePresets = {
+    "my-MM-ThihaNeural": "Myanmar — Thiha, male",
+    "my-MM-NilarNeural": "Myanmar — Nilar, female",
+    "en-US-AndrewNeural": "English (US) — Andrew, male",
+    "en-US-AvaNeural": "English (US) — Ava, female",
+    "zh-CN-XiaoxiaoNeural": "Chinese (Mandarin) — Xiaoxiao, female",
+  };
+  return cachedVoicePresets;
+}
 
 function splitTextForTTS(text, maxChars = 200) {
   const sentences = text
@@ -151,7 +181,7 @@ async function generateSpeech(text, { voice = "en-US-AndrewNeural", jobId } = {}
 }
 
 async function listInstalledVoices() {
-  return VOICE_PRESETS;
+  return loadVoicePresetsFromLibrary();
 }
 
-module.exports = { generateSpeech, listInstalledVoices, VOICE_PRESETS };
+module.exports = { generateSpeech, listInstalledVoices };

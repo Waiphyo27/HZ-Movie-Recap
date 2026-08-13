@@ -213,12 +213,9 @@ async function renderVideo({
   const targetDims = ASPECT_RATIOS[aspectRatio];
   if (targetDims) {
     const { w, h } = targetDims;
-    filterLines.push(`[${currentLabel}]split=2[bgsrc][fgsrc]`);
     filterLines.push(
-      `[bgsrc]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},boxblur=20:5[bgblur]`
+      `[${currentLabel}]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=0x14101f[vpadded]`
     );
-    filterLines.push(`[fgsrc]scale=${w}:${h}:force_original_aspect_ratio=decrease[fgfit]`);
-    filterLines.push(`[bgblur][fgfit]overlay=(W-w)/2:(H-h)/2[vpadded]`);
     currentLabel = "vpadded";
   }
 
