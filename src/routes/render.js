@@ -3,6 +3,7 @@ const router = express.Router();
 
 const { renderVideo } = require("../services/videoRenderer");
 const { createJob, updateJob, getJob } = require("../services/jobStore");
+const { enqueueRender, getQueueLength } = require("../services/renderQueue");
 
 router.post("/", async (req, res) => {
   const {
@@ -42,39 +43,51 @@ router.post("/", async (req, res) => {
   }
 
   const renderJob = createJob({ type: "render", source: ttsJobId });
-  updateJob(renderJob.id, { status: "processing", progress: 10 });
 
-  res.status(202).json({ jobId: renderJob.id, status: "processing" });
+  const queuePosition = getQueueLength();
+  updateJob(renderJob.id, {
+    status: "queued",
+    progress: 0,
+    queuePosition,
+  });
 
-  try {
-    const result = await renderVideo({
-      videoPath: videoJob.filePath,
-      audioPath: ttsJob.audioPath,
-      narrationText,
-      jobId: renderJob.id,
-      subtitlePosition,
-      subtitlesEnabled: subtitlesEnabled !== false,
-      watermarkText: watermarkText || null,
-      logoPath: logoPath || null,
-      logoPosition: logoPosition || null,
-      aspectRatio: aspectRatio || "original",
-      blurRegion: blurRegion || "none",
-      blurBox: blurBox || null,
-    });
+  res.status(202).json({ jobId: renderJob.id, status: "queued", queuePosition });
 
-    updateJob(renderJob.id, {
-      status: "done",
-      progress: 100,
-      outputPath: result.outputPath,
-      srtPath: result.srtPath,
+  enqueueRender(
+    () =>
+      renderVideo({
+        videoPath: videoJob.filePath,
+        audioPath: ttsJob.audioPath,
+        narrationText,
+        jobId: renderJob.id,
+        subtitlePosition,
+        subtitlesEnabled: subtitlesEnabled !== false,
+        watermarkText: watermarkText || null,
+        logoPath: logoPath || null,
+        logoPosition: logoPosition || null,
+        aspectRatio: aspectRatio || "original",
+        blurRegion: blurRegion || "none",
+        blurBox: blurBox || null,
+      }),
+    () => {
+      updateJob(renderJob.id, { status: "processing", progress: 10 });
+    }
+  )
+    .then((result) => {
+      updateJob(renderJob.id, {
+        status: "done",
+        progress: 100,
+        outputPath: result.outputPath,
+        srtPath: result.srtPath,
+      });
+    })
+    .catch((err) => {
+      console.error("Video render failed:", err);
+      updateJob(renderJob.id, {
+        status: "error",
+        error: err && err.message ? err.message : "Unknown render error",
+      });
     });
-  } catch (err) {
-    console.error("Video render failed:", err);
-    updateJob(renderJob.id, {
-      status: "error",
-      error: err && err.message ? err.message : "Unknown render error",
-    });
-  }
 });
 
 router.get("/status/:jobId", (req, res) => {

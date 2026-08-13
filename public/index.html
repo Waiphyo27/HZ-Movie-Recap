@@ -497,10 +497,11 @@ async function loadVoices() {
   }
 }
 
-async function pollUntilDone(url) {
+async function pollUntilDone(url, onStatus) {
   while (true) {
     const res = await fetch(url);
     const data = await res.json();
+    if (onStatus) onStatus(data);
     if (data.status === "done") return data;
     if (data.status === "error") throw new Error(data.error || "Job failed");
     await new Promise(function (r) { setTimeout(r, 2000); });
@@ -781,7 +782,18 @@ phase2Btn.addEventListener("click", async function () {
       body: JSON.stringify(renderBody),
     }).then(function (r) { return r.json(); });
     if (renderStart.error) throw new Error(renderStart.error);
-    const renderResult = await pollUntilDone(API + "/api/render/status/" + renderStart.jobId);
+
+    const renderLabel = phase2Steps.querySelector('[data-step="render"] span');
+    const renderLabelDefault = renderLabel.textContent;
+
+    const renderResult = await pollUntilDone(API + "/api/render/status/" + renderStart.jobId, function (data) {
+      if (data.status === "queued" && data.queuePosition > 0) {
+        renderLabel.textContent = "Queued (" + data.queuePosition + " ahead of you)...";
+      } else {
+        renderLabel.textContent = renderLabelDefault;
+      }
+    });
+    renderLabel.textContent = renderLabelDefault;
     setStepState(phase2Steps, "render", "done");
 
     const parts = renderResult.outputPath.split(/[\\/]/);
