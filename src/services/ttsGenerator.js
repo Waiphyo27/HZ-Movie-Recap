@@ -108,18 +108,31 @@ function splitTextForTTS(text, maxChars = 200) {
   return chunks.length > 0 ? chunks : [text.trim()];
 }
 
-async function generateSpeechChunk(text, voice, outputPath) {
-  const tts = new MsEdgeTTS();
-  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+async function generateSpeechChunk(text, voice, outputPath, attempt = 1) {
+  const MAX_ATTEMPTS = 4;
 
-  const tempDir = `${outputPath}-tmp`;
-  fs.mkdirSync(tempDir, { recursive: true });
+  try {
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
-  await tts.toFile(tempDir, text);
+    const tempDir = `${outputPath}-tmp`;
+    fs.mkdirSync(tempDir, { recursive: true });
 
-  const generatedFile = path.join(tempDir, "audio.mp3");
-  fs.renameSync(generatedFile, outputPath);
-  fs.rmdirSync(tempDir);
+    await tts.toFile(tempDir, text);
+
+    const generatedFile = path.join(tempDir, "audio.mp3");
+    fs.renameSync(generatedFile, outputPath);
+    fs.rmdirSync(tempDir);
+  } catch (err) {
+    const isRetryable = /no audio data|no audio was received|econnreset|timeout/i.test(
+      err.message || ""
+    );
+    if (isRetryable && attempt < MAX_ATTEMPTS) {
+      await new Promise((r) => setTimeout(r, attempt * 1000));
+      return generateSpeechChunk(text, voice, outputPath, attempt + 1);
+    }
+    throw err;
+  }
 }
 
 function concatAudioFiles(filePaths, outputPath) {
