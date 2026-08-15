@@ -2,15 +2,16 @@ const express = require("express");
 const router = express.Router();
 
 const { generateSpeech, listInstalledVoices } = require("../services/ttsGenerator");
+const { generateSpeechGemini, listGeminiVoices } = require("../services/geminiTtsGenerator");
 const { createJob, updateJob, getJob } = require("../services/jobStore");
 
 /**
- * GET /api/tts/voices
- * Lists voices actually installed on this Windows machine.
+ * GET /api/tts/voices?provider=edge|gemini
  */
 router.get("/voices", async (req, res) => {
   try {
-    const voices = await listInstalledVoices();
+    const provider = req.query.provider === "gemini" ? "gemini" : "edge";
+    const voices = provider === "gemini" ? await listGeminiVoices() : await listInstalledVoices();
     res.json(voices);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -19,12 +20,7 @@ router.get("/voices", async (req, res) => {
 
 /**
  * POST /api/tts/:sourceJobId
- * body (optional): { "voice": "en-US-AndrewNeural" }
- *
- * sourceJobId can be EITHER a script-generation job OR a translation job —
- * this route auto-detects which text to use:
- *   - translate job -> uses translatedText (voice in the translated language)
- *   - script job     -> uses scriptText (voice in the original language)
+ * body: { "voice": "...", "provider": "edge"|"gemini", "apiKey": "..." (Gemini only) }
  */
 router.post("/:sourceJobId", async (req, res) => {
   const sourceJob = getJob(req.params.sourceJobId);
@@ -45,7 +41,8 @@ router.post("/:sourceJobId", async (req, res) => {
     });
   }
 
-  const { voice } = req.body || {};
+  const { voice, provider, apiKey } = req.body || {};
+  const useGemini = provider === "gemini";
 
   const ttsJob = createJob({ type: "tts", source: req.params.sourceJobId });
   updateJob(ttsJob.id, { status: "processing", progress: 20 });
@@ -53,10 +50,9 @@ router.post("/:sourceJobId", async (req, res) => {
   res.status(202).json({ jobId: ttsJob.id, status: "processing" });
 
   try {
-    const { audioPath, voice: usedVoice } = await generateSpeech(textToSpeak, {
-      voice,
-      jobId: ttsJob.id,
-    });
+    const { audioPath, voice: usedVoice } = useGemini
+      ? await generateSpeechGemini(textToSpeak, { voice: voice || "Puck", jobId: ttsJob.id, apiKey })
+      : await generateSpeech(textToSpeak, { voice, jobId: ttsJob.id });
 
     updateJob(ttsJob.id, {
       status: "done",
@@ -65,18 +61,12 @@ router.post("/:sourceJobId", async (req, res) => {
       voice: usedVoice,
     });
   } catch (err) {
-    // Log the full error to the server terminal — some libraries throw
-    // non-Error objects whose .message is empty, so we fall back to
-    // stringifying the whole thing.
     console.error("TTS generation failed:", err);
     const errorMessage = err && err.message ? err.message : JSON.stringify(err) || "Unknown TTS error";
     updateJob(ttsJob.id, { status: "error", error: errorMessage });
   }
 });
 
-/**
- * GET /api/tts/status/:jobId
- */
 router.get("/status/:jobId", (req, res) => {
   const job = getJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found." });

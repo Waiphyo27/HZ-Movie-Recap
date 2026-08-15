@@ -279,9 +279,19 @@
 
   <div class="row">
     <div>
+      <label for="voiceProvider">Voice engine</label>
+      <select id="voiceProvider">
+        <option value="edge">Edge (free, can be unreliable)</option>
+        <option value="gemini">Gemini (needs your API key, more reliable)</option>
+      </select>
+    </div>
+    <div>
       <label for="voice">Voice</label>
       <select id="voice"></select>
     </div>
+  </div>
+
+  <div class="row">
     <div>
       <label for="subtitlePosition">Subtitle position</label>
       <select id="subtitlePosition">
@@ -290,6 +300,7 @@
         <option value="top">Top</option>
       </select>
     </div>
+    <div></div>
   </div>
 
   <div class="checkbox-row">
@@ -371,6 +382,7 @@ const translationProviderSelect = document.getElementById("translationProvider")
 const autoTranslateBtn = document.getElementById("autoTranslateBtn");
 const translateErrorBox = document.getElementById("translateErrorBox");
 const voiceSelect = document.getElementById("voice");
+const voiceProviderSelect = document.getElementById("voiceProvider");
 const logoFileInput = document.getElementById("logoFile");
 const phase2Btn = document.getElementById("phase2Btn");
 const phase2Steps = document.getElementById("phase2Steps");
@@ -472,9 +484,9 @@ function showError(box, message) {
   box.innerHTML = '<div class="error-box">' + message + '</div>';
 }
 
-async function loadVoices() {
+async function loadVoices(provider) {
   try {
-    const res = await fetch(API + "/api/tts/voices");
+    const res = await fetch(API + "/api/tts/voices?provider=" + (provider || "edge"));
     const voices = await res.json();
     voiceSelect.innerHTML = "";
     if (Array.isArray(voices)) {
@@ -737,7 +749,11 @@ phase2Btn.addEventListener("click", async function () {
     const ttsStart = await fetch(API + "/api/tts/" + finalTextJob.jobId, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ voice: voice }),
+      body: JSON.stringify({
+        voice: voice,
+        provider: voiceProviderSelect.value,
+        apiKey: voiceProviderSelect.value === "gemini" ? getApiKeyForProvider("gemini") : undefined,
+      }),
     }).then(function (r) { return r.json(); });
     if (ttsStart.error) throw new Error(ttsStart.error);
     await pollUntilDone(API + "/api/tts/status/" + ttsStart.jobId);
@@ -812,7 +828,11 @@ phase2Btn.addEventListener("click", async function () {
   }
 });
 
-loadVoices();
+voiceProviderSelect.addEventListener("change", function () {
+  loadVoices(voiceProviderSelect.value);
+});
+
+loadVoices(voiceProviderSelect.value);
 </script>
 
 </body>
