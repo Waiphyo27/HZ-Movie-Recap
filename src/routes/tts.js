@@ -1,27 +1,21 @@
 const express = require("express");
 const router = express.Router();
 
-const { generateSpeech, listInstalledVoices } = require("../services/ttsGenerator");
-const { generateSpeechGemini, listGeminiVoices } = require("../services/geminiTtsGenerator");
+const { generateSpeech, listInstalledVoices, GEMINI_VOICE_PRESETS } = require("../services/ttsGenerator");
 const { createJob, updateJob, getJob } = require("../services/jobStore");
 
-/**
- * GET /api/tts/voices?provider=edge|gemini
- */
 router.get("/voices", async (req, res) => {
   try {
-    const provider = req.query.provider === "gemini" ? "gemini" : "edge";
-    const voices = provider === "gemini" ? await listGeminiVoices() : await listInstalledVoices();
+    if (req.query.provider === "gemini") {
+      return res.json(GEMINI_VOICE_PRESETS);
+    }
+    const voices = await listInstalledVoices();
     res.json(voices);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-/**
- * POST /api/tts/:sourceJobId
- * body: { "voice": "...", "provider": "edge"|"gemini", "apiKey": "..." (Gemini only) }
- */
 router.post("/:sourceJobId", async (req, res) => {
   const sourceJob = getJob(req.params.sourceJobId);
 
@@ -42,7 +36,6 @@ router.post("/:sourceJobId", async (req, res) => {
   }
 
   const { voice, provider, apiKey } = req.body || {};
-  const useGemini = provider === "gemini";
 
   const ttsJob = createJob({ type: "tts", source: req.params.sourceJobId });
   updateJob(ttsJob.id, { status: "processing", progress: 20 });
@@ -50,9 +43,12 @@ router.post("/:sourceJobId", async (req, res) => {
   res.status(202).json({ jobId: ttsJob.id, status: "processing" });
 
   try {
-    const { audioPath, voice: usedVoice } = useGemini
-      ? await generateSpeechGemini(textToSpeak, { voice: voice || "Puck", jobId: ttsJob.id, apiKey })
-      : await generateSpeech(textToSpeak, { voice, jobId: ttsJob.id });
+    const { audioPath, voice: usedVoice } = await generateSpeech(textToSpeak, {
+      voice,
+      jobId: ttsJob.id,
+      provider: provider || "edge",
+      apiKey: apiKey || null,
+    });
 
     updateJob(ttsJob.id, {
       status: "done",

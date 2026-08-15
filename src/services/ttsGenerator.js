@@ -9,6 +9,94 @@ if (!fs.existsSync(AUDIO_OUTPUT_DIR)) {
   fs.mkdirSync(AUDIO_OUTPUT_DIR, { recursive: true });
 }
 
+const GEMINI_VOICE_PRESETS = {
+  Kore: "Gemini — Kore (firm)",
+  Puck: "Gemini — Puck (upbeat)",
+  Zephyr: "Gemini — Zephyr (bright)",
+  Charon: "Gemini — Charon (informative)",
+  Fenrir: "Gemini — Fenrir (excitable)",
+  Leda: "Gemini — Leda (youthful)",
+  Orus: "Gemini — Orus (firm)",
+  Aoede: "Gemini — Aoede (breezy)",
+  Autonoe: "Gemini — Autonoe (bright)",
+  Enceladus: "Gemini — Enceladus (breathy)",
+};
+
+const GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts";
+
+function buildWavFile(pcmBuffer, sampleRate, numChannels, bitsPerSample) {
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const dataSize = pcmBuffer.length;
+  const buffer = Buffer.alloc(44 + dataSize);
+
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write("WAVE", 8);
+  buffer.write("fmt ", 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(numChannels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(byteRate, 28);
+  buffer.writeUInt16LE(blockAlign, 32);
+  buffer.writeUInt16LE(bitsPerSample, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(dataSize, 40);
+  pcmBuffer.copy(buffer, 44);
+
+  return buffer;
+}
+
+async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }) {
+  if (!apiKey) {
+    throw new Error(
+      "A Gemini API key is required to use Gemini voices — add yours in the API Keys section above, or switch to a free Microsoft voice."
+    );
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini TTS error (${response.status}): ${errText.slice(0, 500)}`);
+  }
+
+  const result = await response.json();
+  const part = result.candidates?.[0]?.content?.parts?.[0];
+  const base64Data = part?.inlineData?.data;
+  const mimeType = part?.inlineData?.mimeType || "";
+
+  if (!base64Data) {
+    throw new Error("Gemini TTS returned no audio data.");
+  }
+
+  const rateMatch = mimeType.match(/rate=(\d+)/);
+  const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+
+  const pcmBuffer = Buffer.from(base64Data, "base64");
+  const wavBuffer = buildWavFile(pcmBuffer, sampleRate, 1, 16);
+
+  const finalPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}.wav`);
+  fs.writeFileSync(finalPath, wavBuffer);
+
+  return { audioPath: finalPath, voice };
+}
+
 const WANTED_LOCALE_PREFIXES = [
   "my-MM",
   "en-US", "en-GB", "en-AU", "en-IN",
@@ -108,12 +196,8 @@ function splitTextForTTS(text, maxChars = 200) {
   return chunks.length > 0 ? chunks : [text.trim()];
 }
 
-// Retries a few times on failure — "No audio data received" is a
-// well-documented, transient issue with Microsoft's underlying (and
-// unofficial) TTS endpoint. It isn't specific to any one voice; a fresh
-// connection attempt usually succeeds.
 async function generateSpeechChunk(text, voice, outputPath, attempt = 1) {
-  const MAX_ATTEMPTS = 4;
+  const MAX_ATTEMPTS = 6;
 
   try {
     const tts = new MsEdgeTTS();
@@ -128,11 +212,12 @@ async function generateSpeechChunk(text, voice, outputPath, attempt = 1) {
     fs.renameSync(generatedFile, outputPath);
     fs.rmdirSync(tempDir);
   } catch (err) {
-    const isRetryable = /no audio data|no audio was received|econnreset|timeout/i.test(
+    const isRetryable = /no audio data|no audio was received|econnreset|timeout|websocket/i.test(
       err.message || ""
     );
     if (isRetryable && attempt < MAX_ATTEMPTS) {
-      await new Promise((r) => setTimeout(r, attempt * 1000));
+      const delay = attempt * 2000 + Math.random() * 1000;
+      await new Promise((r) => setTimeout(r, delay));
       return generateSpeechChunk(text, voice, outputPath, attempt + 1);
     }
     throw err;
@@ -168,9 +253,13 @@ function concatAudioFiles(filePaths, outputPath) {
   });
 }
 
-async function generateSpeech(text, { voice = "en-US-AndrewNeural", jobId } = {}) {
+async function generateSpeech(text, { voice = "en-US-AndrewNeural", jobId, provider = "edge", apiKey = null } = {}) {
   if (!text || !text.trim()) {
     throw new Error("Text is empty — nothing to convert to speech.");
+  }
+
+  if (provider === "gemini") {
+    return generateSpeechViaGemini(text, { voice, apiKey, jobId });
   }
 
   const chunks = splitTextForTTS(text);
@@ -201,4 +290,4 @@ async function listInstalledVoices() {
   return loadVoicePresetsFromLibrary();
 }
 
-module.exports = { generateSpeech, listInstalledVoices };
+module.exports = { generateSpeech, listInstalledVoices, GEMINI_VOICE_PRESETS };
