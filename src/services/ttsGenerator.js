@@ -108,6 +108,10 @@ function splitTextForTTS(text, maxChars = 200) {
   return chunks.length > 0 ? chunks : [text.trim()];
 }
 
+// Retries a few times on failure — "No audio data received" is a
+// well-documented, transient issue with Microsoft's underlying (and
+// unofficial) TTS endpoint. It isn't specific to any one voice; a fresh
+// connection attempt usually succeeds.
 async function generateSpeechChunk(text, voice, outputPath, attempt = 1) {
   const MAX_ATTEMPTS = 4;
 
