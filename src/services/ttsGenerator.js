@@ -48,22 +48,15 @@ function buildWavFile(pcmBuffer, sampleRate, numChannels, bitsPerSample) {
   return buffer;
 }
 
-async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }, attempt = 1) {
+async function generateGeminiChunk(text, voice, apiKey, outputPath, attempt = 1) {
   const MAX_ATTEMPTS = 5;
-
-  if (!apiKey) {
-    throw new Error(
-      "A Gemini API key is required to use Gemini voices — add yours in the API Keys section above, or switch to a free Microsoft voice."
-    );
-  }
-
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent?key=${apiKey}`;
 
   async function retryOrThrow(err) {
     if (attempt < MAX_ATTEMPTS) {
       const delay = attempt * 3000 + Math.random() * 1000;
       await new Promise((r) => setTimeout(r, delay));
-      return generateSpeechViaGemini(text, { voice, apiKey, jobId }, attempt + 1);
+      return generateGeminiChunk(text, voice, apiKey, outputPath, attempt + 1);
     }
     throw err;
   }
@@ -111,12 +104,11 @@ async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }, 
   const pcmBuffer = Buffer.from(base64Data, "base64");
   const wavBuffer = buildWavFile(pcmBuffer, sampleRate, 1, 16);
 
-  const tempWavPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}-raw.wav`);
+  const tempWavPath = `${outputPath}-raw.wav`;
   fs.writeFileSync(tempWavPath, wavBuffer);
 
-  const finalPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}.mp3`);
   await new Promise((resolve, reject) => {
-    const proc = spawn("ffmpeg", ["-i", tempWavPath, "-codec:a", "libmp3lame", "-b:a", "96k", "-y", finalPath]);
+    const proc = spawn("ffmpeg", ["-i", tempWavPath, "-codec:a", "libmp3lame", "-b:a", "96k", "-y", outputPath]);
     let stderrBuffer = "";
     proc.stderr.on("data", (d) => (stderrBuffer += d.toString()));
     proc.on("close", (code) => {
@@ -125,6 +117,35 @@ async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }, 
       resolve();
     });
     proc.on("error", (err) => reject(new Error(`Failed to start ffmpeg: ${err.message}`)));
+  });
+}
+
+async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }) {
+  if (!apiKey) {
+    throw new Error(
+      "A Gemini API key is required to use Gemini voices — add yours in the API Keys section above, or switch to a free Microsoft voice."
+    );
+  }
+
+  const chunks = splitTextForTTS(text, 400);
+  const finalPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}.mp3`);
+
+  if (chunks.length === 1) {
+    await generateGeminiChunk(chunks[0], voice, apiKey, finalPath);
+    return { audioPath: finalPath, voice };
+  }
+
+  const chunkPaths = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const chunkPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}-gpart${i}.mp3`);
+    await generateGeminiChunk(chunks[i], voice, apiKey, chunkPath);
+    chunkPaths.push(chunkPath);
+  }
+
+  await concatAudioFiles(chunkPaths, finalPath);
+
+  chunkPaths.forEach((p) => {
+    try { fs.unlinkSync(p); } catch (e) { /* ignore */ }
   });
 
   return { audioPath: finalPath, voice };
