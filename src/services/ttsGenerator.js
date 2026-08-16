@@ -49,12 +49,12 @@ function buildWavFile(pcmBuffer, sampleRate, numChannels, bitsPerSample) {
 }
 
 async function generateGeminiChunk(text, voice, apiKey, outputPath, attempt = 1) {
-  const MAX_ATTEMPTS = 5;
+  const MAX_ATTEMPTS = 6;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent?key=${apiKey}`;
 
-  async function retryOrThrow(err) {
+  async function retryOrThrow(err, suggestedDelayMs) {
     if (attempt < MAX_ATTEMPTS) {
-      const delay = attempt * 3000 + Math.random() * 1000;
+      const delay = suggestedDelayMs || attempt * 3000 + Math.random() * 1000;
       await new Promise((r) => setTimeout(r, delay));
       return generateGeminiChunk(text, voice, apiKey, outputPath, attempt + 1);
     }
@@ -84,7 +84,12 @@ async function generateGeminiChunk(text, voice, apiKey, outputPath, attempt = 1)
     const errText = await response.text();
     const isRetryable = response.status === 503 || response.status === 429;
     if (isRetryable) {
-      return retryOrThrow(new Error(`Gemini TTS error (${response.status}): ${errText.slice(0, 500)}`));
+      const match = errText.match(/retry in ([\d.]+)s/i);
+      const suggestedDelayMs = match ? parseFloat(match[1]) * 1000 + 500 : null;
+      return retryOrThrow(
+        new Error(`Gemini TTS error (${response.status}): ${errText.slice(0, 500)}`),
+        suggestedDelayMs
+      );
     }
     throw new Error(`Gemini TTS error (${response.status}): ${errText.slice(0, 500)}`);
   }
@@ -127,7 +132,7 @@ async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }) 
     );
   }
 
-  const chunks = splitTextForTTS(text, 400);
+  const chunks = splitTextForTTS(text, 900);
   const finalPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}.mp3`);
 
   if (chunks.length === 1) {
@@ -140,6 +145,9 @@ async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }) 
     const chunkPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}-gpart${i}.mp3`);
     await generateGeminiChunk(chunks[i], voice, apiKey, chunkPath);
     chunkPaths.push(chunkPath);
+    if (i < chunks.length - 1) {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
   }
 
   await concatAudioFiles(chunkPaths, finalPath);
