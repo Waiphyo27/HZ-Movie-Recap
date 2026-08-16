@@ -91,8 +91,21 @@ async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }) 
   const pcmBuffer = Buffer.from(base64Data, "base64");
   const wavBuffer = buildWavFile(pcmBuffer, sampleRate, 1, 16);
 
-  const finalPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}.wav`);
-  fs.writeFileSync(finalPath, wavBuffer);
+  const tempWavPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}-raw.wav`);
+  fs.writeFileSync(tempWavPath, wavBuffer);
+
+  const finalPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}.mp3`);
+  await new Promise((resolve, reject) => {
+    const proc = spawn("ffmpeg", ["-i", tempWavPath, "-codec:a", "libmp3lame", "-b:a", "96k", "-y", finalPath]);
+    let stderrBuffer = "";
+    proc.stderr.on("data", (d) => (stderrBuffer += d.toString()));
+    proc.on("close", (code) => {
+      try { fs.unlinkSync(tempWavPath); } catch (e) { /* ignore */ }
+      if (code !== 0) return reject(new Error(`ffmpeg wav->mp3 conversion failed: ${stderrBuffer.slice(-500)}`));
+      resolve();
+    });
+    proc.on("error", (err) => reject(new Error(`Failed to start ffmpeg: ${err.message}`)));
+  });
 
   return { audioPath: finalPath, voice };
 }
