@@ -48,7 +48,9 @@ function buildWavFile(pcmBuffer, sampleRate, numChannels, bitsPerSample) {
   return buffer;
 }
 
-async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }) {
+async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }, attempt = 1) {
+  const MAX_ATTEMPTS = 5;
+
   if (!apiKey) {
     throw new Error(
       "A Gemini API key is required to use Gemini voices — add yours in the API Keys section above, or switch to a free Microsoft voice."
@@ -73,6 +75,12 @@ async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }) 
 
   if (!response.ok) {
     const errText = await response.text();
+    const isRetryable = response.status === 503 || response.status === 429;
+    if (isRetryable && attempt < MAX_ATTEMPTS) {
+      const delay = attempt * 3000 + Math.random() * 1000;
+      await new Promise((r) => setTimeout(r, delay));
+      return generateSpeechViaGemini(text, { voice, apiKey, jobId }, attempt + 1);
+    }
     throw new Error(`Gemini TTS error (${response.status}): ${errText.slice(0, 500)}`);
   }
 
