@@ -59,27 +59,39 @@ async function generateSpeechViaGemini(text, { voice = "Kore", apiKey, jobId }, 
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent?key=${apiKey}`;
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text }] }],
-      generationConfig: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
+  async function retryOrThrow(err) {
+    if (attempt < MAX_ATTEMPTS) {
+      const delay = attempt * 3000 + Math.random() * 1000;
+      await new Promise((r) => setTimeout(r, delay));
+      return generateSpeechViaGemini(text, { voice, apiKey, jobId }, attempt + 1);
+    }
+    throw err;
+  }
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
+          },
         },
-      },
-    }),
-  });
+      }),
+    });
+  } catch (networkErr) {
+    return retryOrThrow(new Error(`Gemini TTS network error: ${networkErr.message}`));
+  }
 
   if (!response.ok) {
     const errText = await response.text();
     const isRetryable = response.status === 503 || response.status === 429;
-    if (isRetryable && attempt < MAX_ATTEMPTS) {
-      const delay = attempt * 3000 + Math.random() * 1000;
-      await new Promise((r) => setTimeout(r, delay));
-      return generateSpeechViaGemini(text, { voice, apiKey, jobId }, attempt + 1);
+    if (isRetryable) {
+      return retryOrThrow(new Error(`Gemini TTS error (${response.status}): ${errText.slice(0, 500)}`));
     }
     throw new Error(`Gemini TTS error (${response.status}): ${errText.slice(0, 500)}`);
   }
