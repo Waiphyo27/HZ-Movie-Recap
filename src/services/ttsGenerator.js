@@ -328,7 +328,7 @@ async function generateSpeech(text, { voice = "en-US-AndrewNeural", jobId, provi
     return generateSpeechViaGemini(text, { voice, apiKey, jobId });
   }
 
-  const chunks = splitTextForTTS(text);
+  const chunks = splitTextForTTS(text, 1200);
   const finalPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}.mp3`);
 
   if (chunks.length === 1) {
@@ -341,6 +341,9 @@ async function generateSpeech(text, { voice = "en-US-AndrewNeural", jobId, provi
     const chunkPath = path.join(AUDIO_OUTPUT_DIR, `${jobId}-part${i}.mp3`);
     await generateSpeechChunk(chunks[i], voice, chunkPath);
     chunkPaths.push(chunkPath);
+    if (i < chunks.length - 1) {
+      await new Promise((r) => setTimeout(r, 800));
+    }
   }
 
   await concatAudioFiles(chunkPaths, finalPath);

@@ -222,7 +222,7 @@ async function renderVideo({
   if (subtitlesEnabled) {
     const alignment = SUBTITLE_POSITIONS[subtitlePosition] || SUBTITLE_POSITIONS.bottom;
     filterLines.push(
-      `[${currentLabel}]subtitles='${escapedSrtPath}':force_style='Fontname=Noto Sans\\,Alignment=${alignment}\\,MarginV=40'[vsub]`
+      `[${currentLabel}]subtitles='${escapedSrtPath}':force_style='Fontname=Noto Sans Myanmar\\,Alignment=${alignment}\\,MarginV=40'[vsub]`
       );
     currentLabel = "vsub";
   }
