@@ -6,6 +6,11 @@ RUN apt-get update && apt-get install -y \
     unzip \
     python3 \
     fonts-dejavu-core \
+    fonts-noto-cjk \
+    fonts-noto-core \
+    fonts-noto-unhinted \
+    fontconfig \
+    && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
