@@ -100,7 +100,11 @@ async function generateGeminiChunk(text, voice, apiKey, outputPath, attempt = 1)
   const mimeType = part?.inlineData?.mimeType || "";
 
   if (!base64Data) {
-    throw new Error("Gemini TTS returned no audio data.");
+    const finishReason = result.candidates?.[0]?.finishReason;
+    const blockReason = result.promptFeedback?.blockReason;
+    const safetyRatings = result.candidates?.[0]?.safetyRatings;
+    const diagnostic = JSON.stringify({ finishReason, blockReason, safetyRatings, raw: result }).slice(0, 800);
+    throw new Error(`Gemini TTS returned no audio data. Diagnostic: ${diagnostic}`);
   }
 
   const rateMatch = mimeType.match(/rate=(\d+)/);
