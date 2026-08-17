@@ -77,6 +77,38 @@ function escapePathForFfmpegFilter(filePath) {
   return filePath.replace(/\\/g, "/").replace(/:/g, "\\:");
 }
 
+function convertSrtToAss(srtPath, assPath) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("ffmpeg", ["-y", "-i", srtPath, assPath]);
+    let stderrBuffer = "";
+    proc.stderr.on("data", (d) => (stderrBuffer += d.toString()));
+    proc.on("close", (code) => {
+      if (code !== 0) {
+        return reject(new Error(`srt->ass conversion failed: ${stderrBuffer.slice(-500)}`));
+      }
+      resolve(assPath);
+    });
+    proc.on("error", (err) => reject(new Error(`Failed to start ffmpeg: ${err.message}`)));
+  });
+}
+
+function applyAssStyle(assPath, { fontName, alignment, marginV }) {
+  const content = fs.readFileSync(assPath, "utf-8");
+  const patched = content
+    .split(/\r?\n/)
+    .map((line) => {
+      if (!line.startsWith("Style:")) return line;
+      const fields = line.slice("Style:".length).split(",");
+      if (fields.length < 23) return line;
+      fields[1] = fontName;
+      fields[18] = String(alignment);
+      fields[21] = String(marginV);
+      return `Style:${fields.join(",")}`;
+    })
+    .join("\n");
+  fs.writeFileSync(assPath, patched, "utf-8");
+}
+
 function escapeDrawtext(text) {
   return text
     .replace(/\\/g, "\\\\")
@@ -221,9 +253,16 @@ async function renderVideo({
 
   if (subtitlesEnabled) {
     const alignment = SUBTITLE_POSITIONS[subtitlePosition] || SUBTITLE_POSITIONS.bottom;
+    // The `subtitles` filter always uses SIMPLE shaping, which breaks complex
+    // scripts like Myanmar (medials such as ြ are not reordered). Convert to ASS
+    // and use the `ass` filter, which lets us request complex HarfBuzz shaping.
+    const assPath = path.join(SUBTITLE_DIR, `${jobId}.ass`);
+    await convertSrtToAss(srtPath, assPath);
+    applyAssStyle(assPath, { fontName: "Noto Sans Myanmar", alignment, marginV: 40 });
+    const escapedAssPath = escapePathForFfmpegFilter(assPath);
     filterLines.push(
-      `[${currentLabel}]subtitles='${escapedSrtPath}':force_style='Fontname=Noto Sans Myanmar\\,Alignment=${alignment}\\,MarginV=40'[vsub]`
-      );
+      `[${currentLabel}]ass='${escapedAssPath}':shaping=complex[vsub]`
+    );
     currentLabel = "vsub";
   }
 
