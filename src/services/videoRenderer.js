@@ -123,7 +123,28 @@ const SUBTITLE_POSITIONS = {
   bottom: 2,
 };
 
-const WINDOWS_DEFAULT_FONT = "C:/Windows/Fonts/arial.ttf";
+// Watermark font. drawtext needs a real font file, and the old hard-coded
+// Windows path does not exist inside the Linux container. Try the fonts that
+// are actually installed, in order, and let WATERMARK_FONT override.
+const WATERMARK_FONT_CANDIDATES = [
+  process.env.WATERMARK_FONT,
+  "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+  "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+  "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+  "C:/Windows/Fonts/arial.ttf",
+].filter(Boolean);
+
+function resolveWatermarkFont() {
+  for (const candidate of WATERMARK_FONT_CANDIDATES) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch (e) { /* ignore */ }
+  }
+  throw new Error(
+    `No usable watermark font found. Tried: ${WATERMARK_FONT_CANDIDATES.join(", ")}. ` +
+      "Install fonts-dejavu-core, or set the WATERMARK_FONT environment variable to a .ttf path."
+  );
+}
 
 const ASPECT_RATIOS = {
   original: null,
@@ -268,7 +289,7 @@ async function renderVideo({
 
   if (watermarkText) {
     const safeText = escapeDrawtext(watermarkText);
-    const escapedFont = escapePathForFfmpegFilter(WINDOWS_DEFAULT_FONT);
+    const escapedFont = escapePathForFfmpegFilter(resolveWatermarkFont());
     filterLines.push(
       `[${currentLabel}]drawtext=fontfile='${escapedFont}':text='${safeText}':fontcolor=white:fontsize=26:box=1:boxcolor=black@0.4:boxborderw=8:x=w-tw-20:y=h-th-20[vout]`
     );
