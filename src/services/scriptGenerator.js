@@ -1,6 +1,6 @@
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const CHAT_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const CHAT_MODEL = "llama-3.3-70b-versatile";
+const CHAT_MODEL = "openai/gpt-oss-120b";
 
 const TONE_PRESETS = {
   dramatic: "Lean into the emotional weight of the story — make the stakes feel real and moving, like a touching drama.",
