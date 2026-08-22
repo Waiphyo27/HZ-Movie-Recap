@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Sign in — HZ Movie Recap</title>
+<style>
+  :root {
+    --bg: #120e1e;
+    --card: #1a1530;
+    --line: #33294f;
+    --text: #f1eefc;
+    --muted: #a89bc4;
+    --accent: #8b5cf6;
+    --accent-2: #6366f1;
+    --danger: #ef4444;
+    --ok: #22c55e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: radial-gradient(1200px 600px at 50% -10%, #241c42 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  .card {
+    width: 100%;
+    max-width: 400px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 28px 24px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.45);
+  }
+  h1 { margin: 0 0 6px; font-size: 21px; }
+  .sub { margin: 0 0 22px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+  input {
+    width: 100%;
+    padding: 13px 14px;
+    font-size: 16px; /* 16px stops iOS from zooming on focus */
+    color: var(--text);
+    background: #15112a;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-family: inherit;
+    outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  input#code { letter-spacing: 10px; text-align: center; font-size: 24px; font-weight: 700; }
+  button {
+    width: 100%;
+    margin-top: 16px;
+    padding: 13px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    border: 0;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .link {
+    display: block;
+    width: 100%;
+    margin-top: 14px;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    font-size: 13px;
+    text-decoration: underline;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .msg {
+    margin-top: 16px;
+    padding: 11px 13px;
+    border-radius: 9px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    display: none;
+  }
+  .msg.show { display: block; }
+  .msg.err { background: rgba(239,68,68,.13); border: 1px solid rgba(239,68,68,.4); color: #ffb4b4; }
+  .msg.ok  { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.35); color: #a7f3c0; }
+  .note { margin-top: 18px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Sign in</h1>
+    <p class="sub" id="sub">Enter your email address and we'll send you a 6-digit code.</p>
+
+    <form id="emailForm">
+      <label for="email">Email address</label>
+      <input id="email" type="email" inputmode="email" autocomplete="email"
+             placeholder="you@gmail.com" required />
+      <button type="submit" id="sendBtn">Send code</button>
+    </form>
+
+    <form id="codeForm" class="hidden">
+      <label for="code">6-digit code</label>
+      <input id="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+             autocomplete="one-time-code" placeholder="000000" required />
+      <button type="submit" id="verifyBtn">Sign in</button>
+      <button type="button" class="link" id="backBtn">Use a different email</button>
+    </form>
+
+    <div class="msg" id="msg"></div>
+
+    <p class="note">One account, one device. Signing in here signs you out everywhere else.</p>
+  </div>
+
+<script>
+(function () {
+  var emailForm = document.getElementById("emailForm");
+  var codeForm  = document.getElementById("codeForm");
+  var emailIn   = document.getElementById("email");
+  var codeIn    = document.getElementById("code");
+  var sendBtn   = document.getElementById("sendBtn");
+  var verifyBtn = document.getElementById("verifyBtn");
+  var backBtn   = document.getElementById("backBtn");
+  var msg       = document.getElementById("msg");
+  var sub       = document.getElementById("sub");
+
+  function show(text, kind) {
+    msg.textContent = text;
+    msg.className = "msg show " + kind;
+  }
+  function hide() { msg.className = "msg"; }
+
+  async function post(url, body) {
+    var res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    var data = {};
+    try { data = await res.json(); } catch (e) {}
+    return { ok: res.ok, data: data };
+  }
+
+  emailForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    hide();
+    sendBtn.disabled = true;
+    sendBtn.textContent = "Sending...";
+    var r = await post("/api/auth/request-code", { email: emailIn.value });
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Send code";
+
+    if (!r.ok) {
+      show(r.data.error || "Something went wrong. Please try again.", "err");
+      return;
+    }
+    emailForm.classList.add("hidden");
+    codeForm.classList.remove("hidden");
+    sub.textContent = "We sent a code to " + emailIn.value.trim() + ". It expires in 10 minutes.";
+    show(r.data.message || "Check your inbox.", "ok");
+    codeIn.focus();
+  });
+
+  codeForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    hide();
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = "Signing in...";
+    var r = await post("/api/auth/verify", { email: emailIn.value, code: codeIn.value });
+    verifyBtn.disabled = false;
+    verifyBtn.textContent = "Sign in";
+
+    if (!r.ok) {
+      show(r.data.error || "Could not sign in.", "err");
+      codeIn.select();
+      return;
+    }
+    show("Signed in. Loading...", "ok");
+    window.location.href = "/";
+  });
+
+  backBtn.addEventListener("click", function () {
+    hide();
+    codeForm.classList.add("hidden");
+    emailForm.classList.remove("hidden");
+    codeIn.value = "";
+    sub.textContent = "Enter your email address and we'll send you a 6-digit code.";
+    emailIn.focus();
+  });
+})();
+</script>
+</body>
+</html>
